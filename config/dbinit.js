@@ -19,7 +19,8 @@ CREATE TABLE Services (
     id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     duration INT NOT NULL CHECK (duration > 0), -- Duración en minutos
-    description TEXT
+    description TEXT,
+    price INT NOT NULL
 );
 
 CREATE TABLE Availability (
@@ -48,6 +49,12 @@ CREATE TABLE Attendance (
     total_appointments INT DEFAULT 0,
     missed_appointments INT DEFAULT 0,
     last_reset TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE EmployeeServices (
+    employee_id INT REFERENCES Users(id) ON DELETE CASCADE,
+    service_id INT REFERENCES Services(id) ON DELETE CASCADE,
+    PRIMARY KEY (employee_id, service_id)  
 );
 
 `;

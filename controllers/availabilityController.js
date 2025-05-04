@@ -19,54 +19,58 @@ const validateAvailability = [
 
 
 exports.createAvailability = [
-    ...validateAvailability,
     async (req, res) => {
         try {
-            const errors = validationResult(req);
-            if (!errors.isEmpty()) {
-                return res.status(400).json({ 
-                    success: false, 
-                    errors: errors.array() 
-                });
+            const { slots } = req.body;
+            console.log(slots);
+            for (const slot of slots) {
+                const overlapCheck = await pool.query(
+                    `SELECT * FROM availability 
+                        WHERE employee_id = $1 AND date = $2 
+                        AND (start_time < $4 AND end_time > $3)`,
+                    [slot.employee_id, slot.date, slot.start_time, slot.end_time]
+                );
+                if (overlapCheck.rows.length > 0) {
+                    return res.status(400).json({
+                        success: false,
+                        error: `Superposición en slot: ${slot.start_time}-${slot.end_time}`
+                    });
+                }
             }
-
-            const { employee_id, date, start_time, end_time } = req.body;
-
-            const overlapCheck = await pool.query(
-                `SELECT id FROM availability 
-                 WHERE employee_id = $1 AND date = $2 
-                 AND (
-                    (start_time < $4 AND end_time > $3)
-                    OR (start_time = $3)
-                 )`,
-                [employee_id, date, start_time, end_time]
-            );
-
-            if (overlapCheck.rows.length > 0) {
-                return res.status(400).json({
-                    success: false,
-                    error: 'Availability slot overlaps with existing slot'
-                });
-            }
-
-            const result = await pool.query(
-                `INSERT INTO availability 
-                 (employee_id, date, start_time, end_time) 
-                 VALUES ($1, $2, $3, $4)
-                 RETURNING id, employee_id, date, start_time, end_time`,
-                [employee_id, date, start_time, end_time]
-            );
-
-            res.status(201).json({
-                success: true,
-                availability: result.rows[0]
+            let paramCounter = 1;
+            const params = [];
+            const valueClauses = [];     
+            slots.forEach(slot => {
+                valueClauses.push(
+                    `($${paramCounter}, $${paramCounter + 1}, $${paramCounter + 2}, $${paramCounter + 3})`
+                );
+                params.push(
+                    slot.employee_id,
+                    slot.date,
+                    slot.start_time,
+                    slot.end_time
+                );
+                paramCounter += 4;
+            });
+            const query = `
+                INSERT INTO availability 
+                (employee_id, date, start_time, end_time)
+                VALUES ${valueClauses.join(', ')}
+                RETURNING *
+            `;
+            
+            const result = await pool.query(query, params);
+            
+            res.status(201).json({ 
+                success: true, 
+                result: result 
             });
 
         } catch (error) {
-            console.error('Error creating availability:', error);
+            console.error('Error:', error);
             res.status(500).json({ 
                 success: false, 
-                error: 'Failed to create availability slot' 
+                error: 'Error en el servidor' 
             });
         }
     }
@@ -76,6 +80,7 @@ exports.createAvailability = [
 exports.getAvailability = async (req, res) => {
     try {
         const { employee_id, date, start_date, end_date } = req.query;
+        console.log('aca');
         
         let query = `SELECT a.id, a.employee_id, u.first_name, u.last_name, 
                     a.date, a.start_time, a.end_time 
@@ -106,6 +111,7 @@ exports.getAvailability = async (req, res) => {
         }
 
         query += ` ORDER BY a.date, a.start_time`;
+      
 
         const result = await pool.query(query, params);
 
@@ -123,19 +129,37 @@ exports.getAvailability = async (req, res) => {
     }
 };
 
+exports.getWeeklyAvailabilityByEmployee = async (req, res) => {
+    try {
+      const { employeeId, startDay, endDay } = req.query;
+      if (!employeeId || !startDay || !endDay) {
+        return res.status(400).json({ error: 'Missing required parameters' });
+      }
+  
+      const {rows} = await pool.query(`
+        SELECT id, date, start_time, end_time
+        FROM Availability
+        WHERE employee_id = $1 AND date BETWEEN $2 AND $3
+        ORDER BY date ASC, start_time ASC`, [employeeId, startDay, endDay]);
+      
+        
+
+      res.json({ 
+        success: true,
+        result: rows
+       });
+      
+    } catch (error) {
+      console.error('Error fetching availability:', error);
+      res.status(500).json({ error: 'Server error' });
+    }
+};
+  
 
 exports.updateAvailability = [
-    ...validateAvailability,
     async (req, res) => {
         try {
-            const errors = validationResult(req);
-            if (!errors.isEmpty()) {
-                return res.status(400).json({ 
-                    success: false, 
-                    errors: errors.array() 
-                });
-            }
-
+            
             const { availabilityID } = req.params;
             const { employee_id, date, start_time, end_time } = req.body;
 
@@ -147,6 +171,7 @@ exports.updateAvailability = [
                     error: 'Availability slot not found' 
                 });
             }
+            
 
             const overlapCheck = await pool.query(
                 `SELECT id FROM availability 
@@ -159,12 +184,15 @@ exports.updateAvailability = [
                 [employee_id, date, start_time, end_time, availabilityID]
             );
 
+            
+
             if (overlapCheck.rows.length > 0) {
                 return res.status(400).json({
                     success: false,
                     error: 'Updated availability slot overlaps with existing slot'
                 });
             }
+
 
             const result = await pool.query(
                 `UPDATE availability 

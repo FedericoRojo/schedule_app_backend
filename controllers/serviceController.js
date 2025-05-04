@@ -13,6 +13,8 @@ exports.createService = [
     ...validateService,
     async (req, res) => {
         try {
+            
+
             const errors = validationResult(req);
             if (!errors.isEmpty()) {
                 return res.status(400).json({ 
@@ -21,13 +23,13 @@ exports.createService = [
                 });
             }
 
-            const { name, duration, description } = req.body;
+            const { name, duration, description, price } = req.body;
 
             const result = await pool.query(
-                `INSERT INTO services (name, duration, description) 
-                 VALUES ($1, $2, $3) 
+                `INSERT INTO services (name, duration, description, price) 
+                 VALUES ($1, $2, $3, $4) 
                  RETURNING id, name, duration, description`,
-                [name, duration, description]
+                [name, duration, description, price]
             );
 
             res.status(201).json({
@@ -49,14 +51,14 @@ exports.createService = [
 exports.getServices = async (req, res) => {
     try {
         const result = await pool.query(
-            `SELECT id, name, duration, description 
+            `SELECT id, name, duration, description, price
              FROM services 
              ORDER BY name`
         );
 
         res.json({
             success: true,
-            services: result.rows
+            result: result.rows
         });
 
     } catch (error) {
@@ -73,6 +75,7 @@ exports.updateService = [
     ...validateService,
     async (req, res) => {
         try {
+            
             const errors = validationResult(req);
             if (!errors.isEmpty()) {
                 return res.status(400).json({ 
@@ -82,15 +85,16 @@ exports.updateService = [
             }
 
             const { serviceID } = req.params;
-            const { name, duration, description } = req.body;
+            const { name, duration, description, price } = req.body;
+            
 
             // Update service
             const result = await pool.query(
                 `UPDATE services 
-                 SET name = $1, duration = $2, description = $3 
+                 SET name = $1, duration = $2, description = $3, price = $5 
                  WHERE id = $4 
-                 RETURNING id, name, duration, description`,
-                [name, duration, description, serviceID]
+                 RETURNING id, name, duration, description, price`,
+                [name, duration, description, serviceID, price]
             );
 
             if (result.rowCount === 0) {
