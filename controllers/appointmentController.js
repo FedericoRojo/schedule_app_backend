@@ -18,16 +18,13 @@ const validateAppointment = [
             throw new Error('Service not found');
         }
         
-        const start = DateTime.fromISO(`${req.body.date}T${req.body.start_time}`);
-        const end = start.plus({ minutes: service.rows[0].duration });
-        
         const available = await pool.query(
             `SELECT id FROM availability 
              WHERE employee_id = $1 
              AND date = $2
              AND start_time <= $3
              AND end_time >= $4`,
-            [req.body.employee_id, req.body.date, req.body.start_time, end.toFormat('HH:mm')]
+            [req.body.employee_id, req.body.date, req.body.start_time, req.body.end_time]
         );
         
 
@@ -44,7 +41,7 @@ const validateAppointment = [
              AND (
                  (a.start_time < $4 AND a.start_time + (s.duration || ' minutes')::interval > $3)
              )`,
-            [req.body.employee_id, req.body.date, req.body.start_time, end.toFormat('HH:mm')]
+            [req.body.employee_id, req.body.date, req.body.start_time, req.body.end_time]
         );
 
         if (overlapping.rows.length > 0) {
@@ -53,6 +50,8 @@ const validateAppointment = [
         return true;
     })
 ];
+
+
 
 exports.getWeeklyAppointments = async (req, res) => {
     try {
@@ -115,8 +114,9 @@ exports.createAppointment = [
     async (req, res) => {
         try {
             
-            const { employee_id, service_id, date, start_time } = req.body;
+            const { employee_id, service_id, date, start_time, end_time } = req.body;
             const client_id = req.user.id; 
+
 
             const errors = validationResult(req);
             if (!errors.isEmpty()) {
@@ -124,7 +124,7 @@ exports.createAppointment = [
                     success: false, 
                     errors: errors.array() 
                 });
-            }
+            } 
 
 
             const service = await pool.query(
