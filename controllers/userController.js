@@ -33,7 +33,6 @@ const validateLoginUser = [
 exports.registerUser = [
     validateUser,
     async (req, res) => {
-        console.log('here');
         const errors = validationResult(req);
         if (!errors.isEmpty()) {
             return res.status(400).json({
@@ -50,7 +49,7 @@ exports.registerUser = [
         try {
             
             const {rows} = await pool.query(`SELECT * FROM users WHERE email = $1;`, [req.body.email]);
-            
+            console.log('aca', req);
             if(rows.length > 0){
                 return res.status(400).json({
                     success: false,
@@ -58,8 +57,8 @@ exports.registerUser = [
                 })
             }else{
 
-                await pool.query('INSERT INTO users(first_name, last_name, email, hash, salt) VALUES ($1, $2, $3, $4, $5) RETURNING id;', 
-                    [req.body.firstName, req.body.lastName, req.body.email, hash, salt]);
+                await pool.query('INSERT INTO users(first_name, last_name, email, hash, salt, phone) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id;', 
+                    [req.body.firstName, req.body.lastName, req.body.email, hash, salt, req.body.phoneNumber]);
                 
 
                 return res.json({ 
